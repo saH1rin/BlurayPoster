@@ -108,6 +108,28 @@ class Emby(Media):
         except Exception as e:
             logger.error(f"Exception during device registration: {e}")
 
+    def _get_playback_info(self, item_id):
+        """
+        获取播放信息(用于解析strm文件真实路径)
+        :param item_id:
+        :return:
+        """
+        try:
+            url = "{}/emby/Items/{}/PlaybackInfo".format(self._host, item_id)
+            headers = self._get_headers()
+            body = {
+                "UserId": self._user_id
+            }
+            res = requests.post(url=url, headers=headers, json=body)
+            if res.status_code == 200:
+                result = res.json()
+                if "MediaSources" in result and len(result["MediaSources"]) > 0:
+                    # 通常取第一个 MediaSource
+                    return result["MediaSources"][0]
+        except Exception as e:
+            logger.error(f"Exception during get playback info: {e}")
+        return None
+
     def _query_item(self, item_ids):
         """
         查询影片信息
@@ -248,7 +270,32 @@ class Emby(Media):
                         logger.info(f"exclude video, path: {path}")
                         continue
                     self._play_item = item
-                    logger.info(f"prepare to play this video, path: {path}")
+                    # 如果是strm文件，尝试通过API解析真实路径
+                    if path.lower().endswith(".strm"):
+                        logger.info(f"detected strm file, resolving real path: {path}")
+                        media_source = self._get_playback_info(item["Id"])
+                        if media_source and "Path" in media_source:
+                            real_path = media_source["Path"]
+                            if real_path and real_path != path:
+                                logger.info(f"resolved strm path: {path} -> {real_path}")
+                                self._play_item["Path"] = real_path
+                                # 更新 Container 信息
+                                if "Container" in media_source and media_source["Container"] is not None:
+                                    self._play_item["Container"] = media_source["Container"]
+                                else:
+                                    # 如果没有Container信息，尝试从文件名后缀推断
+                                    ext = real_path.split('.')[-1].lower()
+                                    self._play_item["Container"] = ext
+                            else:
+                                logger.warning(f"PlaybackInfo returned same or empty path for strm: {real_path}")
+                        else:
+                            logger.error("failed to resolve strm path via API")
+
+                    # 确保 Container 存在，防止 KeyError
+                    if "Container" not in self._play_item:
+                         self._play_item["Container"] = self._play_item["Path"].split('.')[-1].lower()
+
+                    logger.info(f"prepare to play this video, path: {self._play_item['Path']}")
                     self._run_player()
                     return
                 self._play_item = None

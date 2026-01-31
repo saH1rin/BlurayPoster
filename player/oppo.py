@@ -31,6 +31,9 @@ class Oppo(Player):
             self._udp_server_address = (self._ip, 7624)
             self._http_host = f"http://{self._ip}:436"
             self._mapping_path_list = self._config.get('MappingPath')
+            if self._mapping_path_list:
+                # 按照 Media 路径长度降序排序，防止短路径误匹配长路径的前缀
+                self._mapping_path_list.sort(key=lambda x: len(x.get("Media", "")), reverse=True)
             self._force_mount_path = self._config.get('ForceMountPath')
             self._play_start_timeout = self._config.get('PlayStartTimeout', 5)
             self._play_end_timeout = self._config.get('PlayEndTimeout', 5)
@@ -105,7 +108,7 @@ class Oppo(Player):
                 "appIpAddress": "192.168.1.8",
             }
             url = self._http_host + "/signin?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -122,7 +125,7 @@ class Oppo(Player):
         """
         try:
             url = self._http_host + "/getdevicelist"
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -143,7 +146,7 @@ class Oppo(Player):
                 "serverName": host,
             }
             url = self._http_host + "/loginSambaWithOutID?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -171,7 +174,7 @@ class Oppo(Player):
                 "bRememberID": 1
             }
             url = self._http_host + "/mountSharedFolder?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -191,7 +194,7 @@ class Oppo(Player):
         """
         try:
             url = self._http_host + "/getSambaShareFolderlist"
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             b = res.content.rsplit(b'\x01')
             files = []
             num = 1
@@ -224,7 +227,7 @@ class Oppo(Player):
         """
         try:
             url = self._http_host + "/getNfsShareFolderlist"
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             print(res.text)
             b = res.content.rsplit(b'\x01')
             files = []
@@ -264,7 +267,7 @@ class Oppo(Player):
                 "path": path,
             }
             url = self._http_host + "/getfilelist?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             print(res.text)
             b = res.content.rsplit(b'\x01')
             files = []
@@ -302,7 +305,7 @@ class Oppo(Player):
                 "serverName": host
             }
             url = self._http_host + "/loginNfsServer?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -329,7 +332,7 @@ class Oppo(Player):
             }
             logger.debug("mount path, {}".format(params))
             url = self._http_host + "/mountNfsSharedFolder?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -354,7 +357,7 @@ class Oppo(Player):
                 "folderpath": f"/mnt/nfs1/{path}" if nfs_prefer else f"/mnt/cifs1/{path}",
             }
             url = self._http_host + "/checkfolderhasbdmv?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -381,7 +384,7 @@ class Oppo(Player):
                 "index": 0
             }
             url = self._http_host + "/playnormalfile?" + self.dict_to_url_encoded_json(params)
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -398,7 +401,7 @@ class Oppo(Player):
         """
         try:
             url = self._http_host + "/getmovieplayinfo"
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -414,7 +417,7 @@ class Oppo(Player):
         """
         try:
             url = self._http_host + "/getplayingtime"
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -434,7 +437,7 @@ class Oppo(Player):
         """
         try:
             url = self._http_host + "/getglobalinfo"
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 result = res.json()
                 if "success" in result and result["success"]:
@@ -530,10 +533,15 @@ class Oppo(Player):
                       replace("\\", "/").replace("//", "/"))
         real_path = media_path
         for mapping_path in self._mapping_path_list:
-            real_path = real_path.replace(mapping_path["Media"], mapping_path["NFS"], 1) if self._use_nfs \
-                else real_path.replace(mapping_path["Media"], mapping_path["SMB"], 1)
+            if mapping_path["Media"] in real_path:
+                target_path = mapping_path["NFS"] if self._use_nfs else mapping_path["SMB"]
+                new_path = real_path.replace(mapping_path["Media"], target_path, 1)
+                # 只有当路径真正改变了才认为匹配成功，并停止后续匹配
+                if new_path != real_path:
+                    real_path = new_path
+                    break
         real_path = real_path.replace("//", "/")
-        logger.debug("transfer path, from: {}, to: {}".format(media_path, real_path))
+        logger.info("transfer path, from: {}, to: {}".format(media_path, real_path))
         sever, folder, file = self.extract_path_parts(real_path)
         if self._force_mount_path is not None and self._force_mount_path in folder:
             remain_path = folder.replace(self._force_mount_path, "")

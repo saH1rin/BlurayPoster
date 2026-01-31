@@ -80,13 +80,25 @@ def initialize_components(config):
         tv = initialize_component("TV", config, TVException)
         av = initialize_component("AV", config, AVException)
 
-        media_config = config.get("Media")
-        if media_config and "Executor" in media_config:
-            module_name, class_name = media_config["Executor"].rsplit('.', 1)
-            media_class = dynamic_import(module_name, class_name)
-            media = media_class(player, tv, av, media_config)
-            logging.info("Media operations completed successfully")
-            return media
+        config_media = config.get("Media")
+        media_list = []
+        if isinstance(config_media, list):
+            for media_config in config_media:
+                if media_config and "Executor" in media_config:
+                    module_name, class_name = media_config["Executor"].rsplit('.', 1)
+                    media_class = dynamic_import(module_name, class_name)
+                    media = media_class(player, tv, av, media_config)
+                    media_list.append(media)
+        elif isinstance(config_media, dict):
+            if config_media and "Executor" in config_media:
+                module_name, class_name = config_media["Executor"].rsplit('.', 1)
+                media_class = dynamic_import(module_name, class_name)
+                media = media_class(player, tv, av, config_media)
+                media_list.append(media)
+
+        if len(media_list) > 0:
+            logging.info(f"Media operations completed successfully, count: {len(media_list)}")
+            return media_list
         else:
             raise MediaException("Error initializing Media: Configuration not found or incomplete.")
 
@@ -102,9 +114,10 @@ if __name__ == "__main__":
             setup_logging(my_config.get("LogLevel"))
             my_logger = logging.getLogger(__name__)
             my_logger.info("Starting the main application")
-            my_media = initialize_components(my_config)
-            my_media.start_before()
-            my_media.start()
+            my_media_list = initialize_components(my_config)
+            for my_media in my_media_list:
+                my_media.start_before()
+                my_media.start()
             while True:
                 time.sleep(100)
         else:
